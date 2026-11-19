@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <!-- Point at the client version you will actually run, not the source checkout. -->
-    <MeitouDirectory Condition="'$(MeitouDirectory)' == ''">/path/to/your/Meitou/version</MeitouDirectory>
+    <!-- Compile against the oldest supported official release, even when running a newer client. -->
+    <MeitouDirectory Condition="'$(MeitouDirectory)' == ''">/path/to/Meitou/0.20.1</MeitouDirectory>
   </PropertyGroup>
 </Project>

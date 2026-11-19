@@ -7,12 +7,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <!-- The harness runs against real game assemblies, with no Kenshi assets or test packages. -->
-    <MeitouDirectory Condition="'$(MeitouDirectory)' == ''">$(MSBuildThisFileDirectory)../../../MeitouClient/src/Meitou.Game/bin/Release/$(TargetFramework)</MeitouDirectory>
+    <MeitouDirectory Condition="'$(MeitouDirectory)' == ''">$(MSBuildThisFileDirectory)../../artifacts/meitou/0.20.1</MeitouDirectory>
+    <!-- Compile the harness against each tested client while the mod stays built against the oldest supported release. -->
+    <MeitouRuntimeDirectory Condition="'$(MeitouRuntimeDirectory)' == ''">$(MeitouDirectory)</MeitouRuntimeDirectory>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../CraftCrit-Meitou.csproj" ReferenceOutputAssembly="false" />
-    <Reference Include="$(MeitouDirectory)/*.dll"
-               Exclude="$(MeitouDirectory)/System.*.dll;$(MeitouDirectory)/Microsoft.*.dll;$(MeitouDirectory)/mscorlib.dll;$(MeitouDirectory)/netstandard.dll;$(MeitouDirectory)/WindowsBase.dll" />
+    <Reference Include="$(MeitouRuntimeDirectory)/*.dll"
+               Exclude="$(MeitouRuntimeDirectory)/System.*.dll;$(MeitouRuntimeDirectory)/Microsoft.*.dll;$(MeitouRuntimeDirectory)/mscorlib.dll;$(MeitouRuntimeDirectory)/netstandard.dll;$(MeitouRuntimeDirectory)/WindowsBase.dll" />
     <None Include="../../bin/$(Configuration)/$(TargetFramework)/CraftCrit-Meitou.dll;../../meitou.json;../../CraftCrit-Meitou.mod"
           Link="Mod/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

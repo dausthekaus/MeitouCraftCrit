@@ -11,6 +11,7 @@ using Meitou.Data.Gameplay.Construction;
 using Meitou.Modding;
 using Meitou.Simulation;
 using Meitou.Simulation.Bodies;
+using Meitou.Simulation.Construction;
 using Meitou.Simulation.Items;
 using Meitou.Simulation.Production;
 using Machine = Meitou.Simulation.Production.Machine;
@@ -43,10 +44,20 @@ using (var pe = new PEReader(stream))
         if (!name.StartsWith("Meitou", StringComparison.Ordinal)) continue;
         var supplied = AssemblyName.GetAssemblyName(Path.Combine(AppContext.BaseDirectory, name + ".dll"));
         Check(supplied.Version >= reference.Version,
-            $"{name}: mod requires {reference.Version}, client supplies {supplied.Version}; rebuild against the installed client");
+            $"{name}: mod requires {reference.Version}, client supplies {supplied.Version}; rebuild against the 0.20.1 baseline");
     }
 }
-var host = ModHost.Load(new ModHostOptions([info], database, null!, () => currentWorld, SavedSettings: _ => saved));
+if (args is ["--unsupported-game"])
+{
+    var refused = ModHost.Load(new ModHostOptions([info], database, null!, () => currentWorld, GameVersion: new CodeModVersion(0, 20, 0)));
+    Check(refused.Mods.Count == 0 && refused.Notices.Count == 1, "manifest refuses clients below the 0.20.1 minimum before loading code");
+    Console.WriteLine("PASS: gameVersion refuses 0.20.0.");
+    return;
+}
+
+var engine = typeof(IMod).Assembly.GetName().Version!;
+var host = ModHost.Load(new ModHostOptions([info], database, null!, () => currentWorld, SavedSettings: _ => saved,
+    GameVersion: new CodeModVersion(engine.Major, engine.Minor, engine.Build)));
 Check(host.Mods.Count == 1 && host.Notices.Count == 0, "mod loads and installs its Harmony patches");
 var group = host.Settings.Single();
 var enabled = group.Settings.Single(setting => setting.Key == "OverrideEnabled");
@@ -234,6 +245,7 @@ Check(firstHash.Value != secondHash.Value, "different active percentages produce
 
 // Verify finished inventory items through the operator work path, not just the roll flag.
 var workStep = AccessTools.DeclaredMethod(typeof(ProductionSystem), "WorkStep");
+var workMachine = AccessTools.DeclaredMethod(typeof(ProductionSystem), "WorkMachine");
 ItemInstance CompleteArmour(float skill)
 {
     stats[(StatsEnumerated)8] = skill;
@@ -241,7 +253,13 @@ ItemInstance CompleteArmour(float skill)
     machine.Craft.Queue.Clear();
     machine.Craft.Queue.Add(new CraftJob(new CraftRecipe(option, "Test armour", 1, [], 80)));
     var smith = world.Characters.Cold(machine.Smith.Slot)!;
-    workStep.Invoke(production, [world, machine.Smith.Slot, smith, machine, 1000f, 0]);
+    if (workStep is not null)
+        workStep.Invoke(production, [world, machine.Smith.Slot, smith, machine, 1000f, 0]);
+    else if (workMachine is not null)
+        // The operator path before WorkStep was extracted (verified in official v0.20.1 source).
+        workMachine.Invoke(production, [world, machine.Smith.Slot, new CharacterHot(), smith,
+            new BuildSite { Id = machine.Site, Record = machine.Data.Id, Materials = [] }, machine, 1000f, 0]);
+    else throw new MissingMethodException("No known operator work path in this client.");
     Check(machine.Craft.Done.Count == 1, "operator work completes an actual armour item");
     return machine.Craft.Done.Single();
 }

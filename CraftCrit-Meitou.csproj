@@ -5,15 +5,16 @@
     <OutputType>Library</OutputType>
     <AssemblyName>CraftCrit-Meitou</AssemblyName>
     <RootNamespace>CraftCrit.Meitou</RootNamespace>
-    <Version>0.1.1</Version>
+    <Version>0.1.2</Version>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <!-- Nested test outputs must not become assembly candidates for the mod. Explicit client references always win. -->
     <DefaultItemExcludes>$(DefaultItemExcludes);tests/**;artifacts/**</DefaultItemExcludes>
     <AssemblySearchPaths>{HintPathFromItem};$(AssemblySearchPaths)</AssemblySearchPaths>
-    <!-- Override with -p:MeitouDirectory=/path/to/a/matching/Meitou/release. -->
-    <MeitouDirectory Condition="'$(MeitouDirectory)' == ''">$(MSBuildThisFileDirectory)../MeitouClient/src/Meitou.Game/bin/Release/$(TargetFramework)</MeitouDirectory>
+    <!-- Keep this baseline when updating the running client: one older-reference DLL can bind to newer game assemblies. -->
+    <MeitouBaselineVersion>0.20.1</MeitouBaselineVersion>
+    <MeitouDirectory Condition="'$(MeitouDirectory)' == ''">$(MSBuildThisFileDirectory)artifacts/meitou/$(MeitouBaselineVersion)</MeitouDirectory>
   </PropertyGroup>
 
   <!-- The game supplies these assemblies at runtime; never ship them with the mod. -->
@@ -31,6 +32,11 @@
 
   <Target Name="CheckMeitouReferences" BeforeTargets="ResolveAssemblyReferences">
     <Error Condition="'%(Reference.HintPath)' != '' and !Exists('%(Reference.HintPath)')"
-           Text="Missing Meitou reference: %(Reference.HintPath). Build ../MeitouClient/src/Meitou.Game/Meitou.Game.csproj -c Release first, or set -p:MeitouDirectory=/path/to/a/matching/Meitou/release." />
+           Text="Missing Meitou reference: %(Reference.HintPath). Set MeitouDirectory to the official $(MeitouBaselineVersion) release folder (the oldest supported client); see README.md." />
+    <GetAssemblyIdentity AssemblyFiles="$(MeitouDirectory)/MeitouClient.dll;$(MeitouDirectory)/Meitou.Simulation.dll;$(MeitouDirectory)/Meitou.Data.dll;$(MeitouDirectory)/Meitou.Core.dll">
+      <Output TaskParameter="Assemblies" ItemName="_MeitouBaselineAssemblies" />
+    </GetAssemblyIdentity>
+    <Error Condition="'%(_MeitouBaselineAssemblies.Version)' != '$(MeitouBaselineVersion).0'"
+           Text="%(_MeitouBaselineAssemblies.Identity) has version %(_MeitouBaselineAssemblies.Version). Build CraftCrit against the official $(MeitouBaselineVersion) assemblies to preserve the gameVersion minimum; use MeitouRuntimeDirectory for newer-client checks." />
   </Target>
 </Project>

@@ -34,7 +34,7 @@ normally displays a critical-success row.
 The original mod's F10 toggle is provided here by the native override switch;
 MeitouClient already uses F10 for its debug menu.
 
-On MeitouClient 0.22.1, a compatibility patch removes the obsolete bench-tech
+On older clients such as 0.20.1 and 0.22.1, a compatibility patch removes the obsolete bench-tech
 grade cap, matching `ProductionSystem.Finish` in official source commit
 `3b714bea6b382ffde5716a900498e4940adba4d0`. That release otherwise caps leather
 bench output at quality 25 (Shoddy), regardless of skill or critical success.
@@ -43,7 +43,8 @@ cap need no patch. It affects newly finished items, leaving existing items
 unchanged. With skill 100, Fixed 0% produces Specialist and Fixed 100% produces
 Masterwork, even at a tech-level-25 bench.
 
-Requires a .NET 11 SDK and MeitouClient assemblies targeting `net11.0`.
+Supports standard .NET 11 MeitouClient builds from **0.20.1 onward**. Legacy
+macOS builds using .NET 10 are outside this DLL's supported runtime.
 
 ## Build
 
@@ -55,28 +56,29 @@ MeitouMods/
   MeitouCraftCrit/
 ```
 
-For deployment, compile against the **installed client you will run**:
+Build against the **oldest supported official release, 0.20.1**, even when
+playing on a newer client. Download and extract the standard build from the
+[official release](https://github.com/VlcekM/MeitouClient/releases/tag/v0.20.1),
+then point `MeitouDirectory` at the folder containing its DLLs:
 
 ```sh
-dotnet build CraftCrit-Meitou.csproj -c Release -t:Rebuild -p:MeitouDirectory="/path/to/Meitou/version"
+dotnet build CraftCrit-Meitou.csproj -c Release -t:Rebuild -p:MeitouDirectory="/path/to/Meitou-0.20.1"
 ```
 
 For repeat builds, copy `Meitou.local.props.example` to `Meitou.local.props` and
 set its `MeitouDirectory`. This ignored file is shared by the mod and integration
-checks. On this machine it already points at
-`/home/daus/.local/share/Meitou/versions/0.22.1`. Update it when changing client versions.
+checks. Its default is `artifacts/meitou/0.20.1/`, where this machine's verified
+baseline references are cached. Keep this baseline when updating the running
+client. A .NET 11 SDK is required.
 
 ```sh
 dotnet build CraftCrit-Meitou.csproj -c Release -t:Rebuild
 ```
 
-The source checkout remains available for inspection and source-client development.
-For that workflow build `../MeitouClient/src/Meitou.Game/Meitou.Game.csproj -c Release`
-and explicitly set `MeitouDirectory` to its `bin/Release/net11.0` output.
-An unversioned source build has assembly version `1.0.0.0`, whereas the installed
-0.22.1 release supplies `0.22.1.0`. A mod referencing the former cannot bind to
-the latter, even with the same API names, and the loader can report the entry
-type as absent. Build against the installed release for installation testing.
+The build checks all four Meitou reference assemblies are version `0.20.1.0`.
+This prevents accidentally raising the DLL's minimum version while its manifest
+still accepts older clients. An unversioned source build (`1.0.0.0`) also fails
+this check. The source checkout remains useful for API inspection.
 
 `MeitouDirectory` must contain `MeitouClient.dll`, `Meitou.Simulation.dll`,
 `Meitou.Data.dll`, `Meitou.Core.dll`, and `0Harmony.dll`. All references use
@@ -95,7 +97,7 @@ After building, copy these files from `bin/Release/net11.0/` into
 
 Enable CraftCrit-Meitou in the Meitou launcher, then start the game and check
 `log.txt` for the initialization message. A legal Kenshi installation and a
-matching MeitouClient build are required to check actual game loading.
+supported MeitouClient build are required to check actual game loading.
 
 On this machine the Kenshi installation was verified at
 `/home/daus/.local/share/Steam/steamapps/common/Kenshi`. From this repository,
@@ -128,8 +130,8 @@ MeitouClient; settings changes need no restart.
 A ready-to-copy three-file folder and tar archive are also available under
 `artifacts/CraftCrit-Meitou/` and `artifacts/CraftCrit-Meitou.tar.gz` after this
 setup's verification. Copy only the mod's files; the game's assemblies stay
-with MeitouClient. For another installed client version, rebuild with
-`-p:MeitouDirectory="/path/to/that/client"` before copying.
+with MeitouClient. Use the same three files for every supported client version;
+upgrading Meitou alone does not require rebuilding the mod.
 
 `CraftCrit-Meitou.mod` is a valid V17 FCS file with no records, generated with
 MeitouClient's `FcsWriter`. It lets the launcher discover the code mod.
@@ -144,9 +146,16 @@ Source inspected: `3b714bea6b382ffde5716a900498e4940adba4d0`, including
 `IMod.cs`, `ModContext.cs`, `CodeModManifest.cs`, `ModList.cs`, and `FcsWriter.cs`.
 
 The engine contract also documents a `Meitou.References` NuGet package, but its
-public package index returned HTTP 404 during setup. This project therefore
-uses the documented assembly-reference approach. Build against the version
-you will run; API version 2 alone does not guarantee binary compatibility.
+public package index still returned HTTP 404 on 2026-11-19. This project uses
+the documented release-assembly reference approach.
+
+The [reference-package documentation](https://github.com/VlcekM/MeitouClient/blob/master/docs/modding.md#reference-package)
+explains that .NET requires game assembly versions at least as new as the mod's
+references. A DLL built against `0.20.1.0` can bind to `0.22.1.0`; the reverse
+cannot. The manifest's [gameVersion range](https://github.com/VlcekM/MeitouClient/blob/master/docs/modding-dependencies.md#manifest)
+is an additional loader check, not an assembly-binding override. This mod uses
+`"gameVersion": ">=0.20.1"` with API 2 and no upper bound. Nightlies count as
+their release version. API 2 alone does not guarantee engine binary compatibility.
 
 ## Verification and compatibility
 
@@ -156,7 +165,20 @@ Run the integration checks against the built game assemblies, without Kenshi ass
 dotnet run --project tests/CraftCrit.Meitou.Checks/CraftCrit.Meitou.Checks.csproj -c Release
 dotnet run --project tests/CraftCrit.Meitou.Checks/CraftCrit.Meitou.Checks.csproj -c Release --no-build -- --saved-settings
 dotnet run --project tests/CraftCrit.Meitou.Checks/CraftCrit.Meitou.Checks.csproj -c Release --no-build -- --saved-multiplier
+dotnet run --project tests/CraftCrit.Meitou.Checks/CraftCrit.Meitou.Checks.csproj -c Release --no-build -- --unsupported-game
 ```
+
+To check the **same built mod DLL** against another extracted client, first
+build the mod against 0.20.1 as above, then build/run only the harness against
+the newer client's assemblies:
+
+```sh
+dotnet run --project tests/CraftCrit.Meitou.Checks/CraftCrit.Meitou.Checks.csproj -c Release -p:BuildProjectReferences=false -p:MeitouRuntimeDirectory="/path/to/newer/Meitou"
+```
+
+`MeitouRuntimeDirectory` affects only the harness. `MeitouDirectory` remains
+the compilation baseline. Repeat the `--no-build` commands after each client
+to check persisted preferences and rejection below the supported minimum.
 
 The harness loads the mod through the real `ModHost` and executes its Harmony
 patches against the actual `ProductionSystem.CraftStep` and `SmithsView` methods.
@@ -175,16 +197,22 @@ the UI. Finished-item checks exercise the actual operator work path at a
 tech-level-25 bench: Fixed 0%/100%, Multiplier 10× and override off at skill 100.
 No test packages are required.
 
-The library builds with zero warnings/errors. Integration checks pass on Linux
-with SDK `11.0.100-rc.3.26522.148`, installed MeitouClient **0.22.1** (assembly
-version `0.22.1.0`, game revision `9ee4074b`), and its bundled Harmony `3.0.0-rc.5`.
-The same checks pass on the installed client's bundled .NET 11 runtime. An
-additional read-only quicksave reproduction with Kenshi assets confirms native
-0.22.1 finishes Drifter's Boots at grade 25, whereas this compatibility fix
-produces 80/95 and retains that grade when transferred into Inu's inventory.
-The source snapshot above remains the inspected API reference. Interactive
-in-game verification after restarting is still required. The only DLL in the
-mod output is `CraftCrit-Meitou.dll`.
+The 0.20.1 baseline build has zero warnings/errors. On Linux, the same DLL
+(verified by SHA256) passes the full checks and both saved-setting checks
+using each official client's own bundled .NET 11 runtime and Harmony:
+
+| Client | Official revision | Result | Old grade-cap fix |
+| --- | --- | --- | --- |
+| 0.20.1 | `8c79093d` | PASS | Applied |
+| 0.21.0 | `86345d18` | PASS | Applied |
+| 0.22.1 | `9ee4074b` | PASS | Applied |
+| 0.22.2-nightly.20261119.2 | `69d2688b` | PASS | Skipped; engine already fixed |
+
+These are headless integration checks with synthetic items and smiths, not
+interactive coverage on every OS. A read-only quicksave reproduction with real
+Kenshi content also confirmed the 0.22.1 fix produces grade 80/95 and preserves
+it after transfer into Inu's inventory; the user subsequently confirmed the
+fix works in-game on 0.22.1. The only DLL shipped is `CraftCrit-Meitou.dll`.
 
 The simulation patch replaces the chance call inside the large `CraftStep`
 method, because patching a small helper can fail through JIT inlining. It leaves
@@ -194,7 +222,11 @@ from the same raw normal chance, before the game's integer display truncation.
 Each world's settings system is placed before production, applies commands in
 `Inputs`, invalidates prediction caches, and implements `IStateHashed`.
 
-The private method signature is version-sensitive. A missing method or changed
-chance call refuses the mod at initialization with an error in the game log;
-MeitouClient rolls back its patches. Build and verify against the game version
-you will run.
+The open range permits newer clients to try loading this DLL; it cannot promise
+compatibility with unknown future code. The private `CraftStep` signature and
+chance/preview IL patterns are checked when patches install. A missing method
+or changed pattern refuses the mod with a log error and the loader rolls back
+its patches. The grade fix recognizes the two obsolete caps and skips clients
+without them. Recheck new releases using the same DLL; update the mod only
+when a relevant API or patch target changes. Raising the baseline also requires
+updating `gameVersion`, the build guard, and the verification matrix.
