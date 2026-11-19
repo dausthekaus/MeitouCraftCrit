@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="Meitou.local.props" Condition="Exists('Meitou.local.props')" />
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <AssemblyName>CraftCrit-Meitou</AssemblyName>
+    <RootNamespace>CraftCrit.Meitou</RootNamespace>
+    <Version>0.1.1</Version>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Nested test outputs must not become assembly candidates for the mod. Explicit client references always win. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);tests/**;artifacts/**</DefaultItemExcludes>
+    <AssemblySearchPaths>{HintPathFromItem};$(AssemblySearchPaths)</AssemblySearchPaths>
+    <!-- Override with -p:MeitouDirectory=/path/to/a/matching/Meitou/release. -->
+    <MeitouDirectory Condition="'$(MeitouDirectory)' == ''">$(MSBuildThisFileDirectory)../MeitouClient/src/Meitou.Game/bin/Release/$(TargetFramework)</MeitouDirectory>
+  </PropertyGroup>
+
+  <!-- The game supplies these assemblies at runtime; never ship them with the mod. -->
+  <ItemGroup>
+    <Reference Include="MeitouClient" HintPath="$(MeitouDirectory)/MeitouClient.dll" Private="false" />
+    <Reference Include="Meitou.Simulation" HintPath="$(MeitouDirectory)/Meitou.Simulation.dll" Private="false" />
+    <Reference Include="Meitou.Data" HintPath="$(MeitouDirectory)/Meitou.Data.dll" Private="false" />
+    <Reference Include="Meitou.Core" HintPath="$(MeitouDirectory)/Meitou.Core.dll" Private="false" />
+    <Reference Include="0Harmony" HintPath="$(MeitouDirectory)/0Harmony.dll" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="meitou.json;CraftCrit-Meitou.mod" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="CheckMeitouReferences" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="'%(Reference.HintPath)' != '' and !Exists('%(Reference.HintPath)')"
+           Text="Missing Meitou reference: %(Reference.HintPath). Build ../MeitouClient/src/Meitou.Game/Meitou.Game.csproj -c Release first, or set -p:MeitouDirectory=/path/to/a/matching/Meitou/release." />
+  </Target>
+</Project>

@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- Point at the client version you will actually run, not the source checkout. -->
+    <MeitouDirectory Condition="'$(MeitouDirectory)' == ''">/path/to/your/Meitou/version</MeitouDirectory>
+  </PropertyGroup>
+</Project>

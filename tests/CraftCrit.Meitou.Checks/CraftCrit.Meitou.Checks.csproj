@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../../Meitou.local.props" Condition="Exists('../../Meitou.local.props')" />
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- The harness runs against real game assemblies, with no Kenshi assets or test packages. -->
+    <MeitouDirectory Condition="'$(MeitouDirectory)' == ''">$(MSBuildThisFileDirectory)../../../MeitouClient/src/Meitou.Game/bin/Release/$(TargetFramework)</MeitouDirectory>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../CraftCrit-Meitou.csproj" ReferenceOutputAssembly="false" />
+    <Reference Include="$(MeitouDirectory)/*.dll"
+               Exclude="$(MeitouDirectory)/System.*.dll;$(MeitouDirectory)/Microsoft.*.dll;$(MeitouDirectory)/mscorlib.dll;$(MeitouDirectory)/netstandard.dll;$(MeitouDirectory)/WindowsBase.dll" />
+    <None Include="../../bin/$(Configuration)/$(TargetFramework)/CraftCrit-Meitou.dll;../../meitou.json;../../CraftCrit-Meitou.mod"
+          Link="Mod/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
