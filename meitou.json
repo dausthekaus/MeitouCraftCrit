@@ -1,0 +1,7 @@
+{
+  "id": "craftcrit-meitou",
+  "version": "0.1.0",
+  "apiVersion": 2,
+  "assemblies": ["CraftCrit-Meitou.dll"],
+  "entry": "CraftCrit.Meitou.CraftCritMod"
+}
