@@ -181,7 +181,9 @@ the compilation baseline. Repeat the `--no-build` commands after each client
 to check persisted preferences and rejection below the supported minimum.
 
 The harness loads the mod through the real `ModHost` and executes its Harmony
-patches against the actual `ProductionSystem.CraftStep` and `SmithsView` methods.
+patches against the actual `ProductionSystem.CraftStep` and preview calculation.
+The preview lives in `ProductionSystem.SmithsView` on older clients and in
+`SmithViewCache.Predictions` after the nightly refactor.
 It first checks that the client's assembly versions can satisfy the mod's
 references. To check the deployed copy, set `CRAFTCRIT_MOD_FOLDER` to its folder
 when running the harness. Nested test output and artifacts are excluded from
@@ -193,20 +195,27 @@ preferences before the world's first roll. Multiplier checks cover 0×, 0.5×,
 1×, 2×, 10×, the 100% cap, zero base chances, exclusive controls, and inactive
 values having no effect. Preview checks run the actual calculation with a
 synthetic smith and bench, including fractional skill values. They do not draw
-the UI. Finished-item checks exercise the actual operator work path at a
-tech-level-25 bench: Fixed 0%/100%, Multiplier 10× and override off at skill 100.
+the UI. Cached-view checks cover repeated reads, settings waiting for serial
+inputs, mode changes with the same smith and queue, and independent preview
+settings per production system. Finished-item checks exercise the actual
+operator work path at a tech-level-25 bench: Fixed 0%/100%, Multiplier 10× and
+override off at skill 100.
 No test packages are required.
 
-The 0.20.1 baseline build has zero warnings/errors. On Linux, the same DLL
-(verified by SHA256) passes the full checks and both saved-setting checks
-using each official client's own bundled .NET 11 runtime and Harmony:
+The 0.1.3 mod's 0.20.1 baseline build has zero warnings/errors. On Linux, the
+same DLL (verified by SHA256) passes the full checks and both saved-setting
+checks using each official client's own bundled .NET 11 runtime and Harmony:
 
-| Client | Official revision | Result | Old grade-cap fix |
-| --- | --- | --- | --- |
-| 0.20.1 | `8c79093d` | PASS | Applied |
-| 0.21.0 | `86345d18` | PASS | Applied |
-| 0.22.1 | `9ee4074b` | PASS | Applied |
-| 0.22.2-nightly.20261119.2 | `69d2688b` | PASS | Skipped; engine already fixed |
+| Client | Result | Old grade-cap fix |
+| --- | --- | --- |
+| 0.20.1 | PASS | Applied |
+| 0.21.0 | PASS | Applied |
+| 0.22.1 | PASS | Applied |
+| 0.22.2-nightly.20261121 | PASS | Skipped; engine already fixed |
+| 0.22.2-nightly.20261121.2 | PASS | Skipped; engine already fixed |
+| 0.22.2-nightly.20261122.2 | PASS | Skipped; engine already fixed |
+| 0.22.2-nightly.20261123.2 | PASS | Skipped; engine already fixed |
+| 0.22.2-nightly.20261124.2 | PASS | Skipped; engine already fixed |
 
 These are headless integration checks with synthetic items and smiths, not
 interactive coverage on every OS. A read-only quicksave reproduction with real
@@ -217,8 +226,14 @@ fix works in-game on 0.22.1. The only DLL shipped is `CraftCrit-Meitou.dll`.
 The simulation patch replaces the chance call inside the large `CraftStep`
 method, because patching a small helper can fail through JIT inlining. It leaves
 the engine's deterministic RNG, roll counter, and saved craft outcomes intact.
-A second call-site patch computes the displayed percentage in `SmithsView`
-from the same raw normal chance, before the game's integer display truncation.
+A second call-site patch computes the displayed percentage from the same raw
+normal chance, before the game's integer display truncation. On refactored
+clients it targets the extracted `SmithViewCache.Predictions` method, discovered
+at runtime so the DLL can still compile against 0.20.1. Each cache is associated
+with its own production system's settings. Serial rule changes invalidate its
+per-bench entries and published map; touching the machine registry alone would
+leave those entries reusable and show stale percentages. The cache layout is
+verified against [official nightly source](https://github.com/VlcekM/MeitouClient/blob/v0.22.2-nightly.20261124.2/src/Meitou.Simulation/Production/SmithViewCache.cs).
 Each world's settings system is placed before production, applies commands in
 `Inputs`, invalidates prediction caches, and implements `IStateHashed`.
 

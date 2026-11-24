@@ -178,6 +178,17 @@ for (int percent = 0; percent <= 100; percent++)
     Check(preview.Entries[1].Critical == -1, "items without a critical chance row keep it hidden");
 }
 
+var cachedPreview = production.SmithsView(world);
+Check(ReferenceEquals(cachedPreview, production.SmithsView(world)), "unchanged previews retain the engine's cache");
+chance.Set(13);
+Check(ReferenceEquals(cachedPreview, production.SmithsView(world)) && cachedPreview[machine.Site].Entries[0].Critical == 100,
+    "preview changes wait for the serial input phase");
+ApplySettings();
+Check(production.SmithsView(world)[machine.Site].Entries[0].Critical == 13,
+    "settings refresh a cached preview without changing the smith or queued options");
+chance.Set(100);
+ApplySettings();
+
 Check(chance.Visible && !multiplier.Visible, "fixed mode shows only its own slider");
 multiplier.Set(9);
 ApplySettings();
@@ -187,6 +198,8 @@ mode.Set("Multiplier");
 multiplier.Set(2);
 ApplySettings();
 Check(!chance.Visible && multiplier.Visible, "multiplier mode shows only its own slider");
+Check(production.SmithsView(world)[machine.Site].Entries[0].Critical == (int)(CraftBench.CriticalChance(99, machine.Data.Stat, option.Level) * 2 * 100),
+    "switching modes refreshes the cached preview with the same smith and queue");
 Check(Roll(80).Critical == 0, "multiplying a zero base chance still gives zero");
 for (int i = 0; i < 512; i++)
 {
@@ -236,6 +249,9 @@ var otherMachine = new Machine { Site = "other-bench", Data = machine.Data, Craf
 otherMachine.Craft.Queue.Add(new CraftJob(new CraftRecipe(option, "Test armour", 1, [], 80)));
 craftStep.Invoke(otherProduction, [world, otherMachine, 130f, 1f, 0f]);
 Check(otherMachine.Craft.Queue[0].Critical == 0 && Roll().Critical == 1, "production systems keep independent per-world settings");
+Check(otherProduction.SmithsView(world)[machine.Site].Entries[0].Critical == 0
+    && production.SmithsView(world)[machine.Site].Entries[0].Critical == 100,
+    "each production system's preview uses its own settings, including extracted preview caches");
 Check(system is IStateHashed && otherSystem is IStateHashed, "active settings participate in the state hash");
 var firstHash = new StateHasher();
 var secondHash = new StateHasher();

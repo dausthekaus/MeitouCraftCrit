@@ -16,7 +16,12 @@ internal static class CraftingPatches
     /// <summary>
     /// Weak keys keep each world's production state separate without retaining old worlds.
     /// </summary>
-    static readonly ConditionalWeakTable<ProductionSystem, CraftChanceSystem> Systems = new();
+    static readonly ConditionalWeakTable<object, CraftChanceSystem> Systems = new();
+
+    /// <summary>
+    /// The inspected preview layout selected during initialization, before any world is built.
+    /// </summary>
+    static CraftPreviewTarget? _preview;
 
     /// <summary>
     /// The official chance helper, whose call sites are replaced without changing the deterministic roll.
@@ -25,7 +30,7 @@ internal static class CraftingPatches
         [typeof(float), typeof(int), typeof(int)])!;
 
     /// <summary>
-    /// The replacement takes the production instance as an extra argument to find its world's chance state.
+    /// The replacement takes the caller's owner instance as an extra argument to find its world's chance state.
     /// </summary>
     static readonly MethodInfo ModChance = AccessTools.DeclaredMethod(typeof(CraftingPatches), nameof(CriticalChance));
 
@@ -40,10 +45,10 @@ internal static class CraftingPatches
     internal static void Install(Harmony harmony)
     {
         var craft = RequireMethod("CraftStep", [typeof(World), typeof(Machine), typeof(float), typeof(float), typeof(float)]);
-        var preview = RequireMethod(nameof(ProductionSystem.SmithsView), [typeof(World)]);
+        _preview = CraftPreviewTarget.Resolve(OriginalChance);
         var transpiler = new HarmonyMethod(typeof(CraftingPatches), nameof(ReplaceChance));
         harmony.Patch(craft, transpiler: transpiler);
-        harmony.Patch(preview, transpiler: transpiler);
+        harmony.Patch(_preview.Method, transpiler: transpiler);
     }
 
     /// <summary>
@@ -51,27 +56,30 @@ internal static class CraftingPatches
     /// </summary>
     internal static CraftChanceSystem Bind(ProductionSystem production, CraftChanceRule rule)
     {
-        var system = new CraftChanceSystem(rule);
+        var preview = _preview!;
+        object owner = preview.OwnerOf(production);
+        var system = new CraftChanceSystem(rule, () => preview.Invalidate(owner));
         Systems.Add(production, system);
+        if (!ReferenceEquals(owner, production)) Systems.Add(owner, system);
         return system;
     }
 
     /// <summary>
     /// Uses the configured absolute probability, or the official skill-based calculation when the override is off or no system is bound.
     /// </summary>
-    static float CriticalChance(float skill, int stat, int level, ProductionSystem production)
+    static float CriticalChance(float skill, int stat, int level, object owner)
     {
         float normal = CraftBench.CriticalChance(skill, stat, level);
-        return Systems.TryGetValue(production, out var system) ? system.Rule.Apply(normal) : normal;
+        return Systems.TryGetValue(owner, out var system) ? system.Rule.Apply(normal) : normal;
     }
 
     /// <summary>
     /// Uses the unrounded normal probability for multiplier previews, while preserving exact integers in fixed mode.
     /// </summary>
-    static int CriticalPercentage(float skill, int stat, int level, ProductionSystem production)
+    static int CriticalPercentage(float skill, int stat, int level, object owner)
     {
         float normal = CraftBench.CriticalChance(skill, stat, level);
-        return Systems.TryGetValue(production, out var system)
+        return Systems.TryGetValue(owner, out var system)
             ? system.Rule.Percentage(normal)
             : Math.Clamp((int)(normal * 100f), 0, 100);
     }
@@ -84,12 +92,12 @@ internal static class CraftingPatches
         ?? throw new MissingMethodException($"Unsupported MeitouClient crafting API: ProductionSystem.{name} was not found.");
 
     /// <summary>
-    /// Adds the production instance to each chance call, preserving branch labels; refuses a changed or conflicting method with no such call.
+    /// Adds the owning instance to each chance call, preserving branch labels; refuses a changed or conflicting method with no such call.
     /// </summary>
     static IEnumerable<CodeInstruction> ReplaceChance(IEnumerable<CodeInstruction> instructions, MethodBase original)
     {
         var code = instructions.ToList();
-        bool preview = original.Name == nameof(ProductionSystem.SmithsView);
+        bool preview = original == _preview!.Method;
         int replaced = 0;
         for (int i = 0; i < code.Count; i++)
         {

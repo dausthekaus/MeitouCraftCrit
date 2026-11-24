@@ -10,7 +10,7 @@ internal sealed record SetCraftChance(CraftChanceRule Rule) : SimCommand;
 /// <summary>
 /// Per-world chance state. The original production system still owns every roll, its counter, and saved craft outcomes.
 /// </summary>
-internal sealed class CraftChanceSystem(CraftChanceRule rule) : ITickSystem, IStateHashed
+internal sealed class CraftChanceSystem(CraftChanceRule rule, Action? invalidatePreview = null) : ITickSystem, IStateHashed
 {
     /// <summary>
     /// The active rule. Only Inputs replaces this immutable snapshot after construction.
@@ -33,6 +33,7 @@ internal sealed class CraftChanceSystem(CraftChanceRule rule) : ITickSystem, ISt
             if (change.Rule == _rule) continue;
 
             Volatile.Write(ref _rule, change.Rule);
+            invalidatePreview?.Invoke();
             world.Machines.Touch();
         }
     }
